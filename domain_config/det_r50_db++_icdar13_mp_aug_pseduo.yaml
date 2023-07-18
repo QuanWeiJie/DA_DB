@@ -1,0 +1,233 @@
+Global:
+  debug: false
+  use_gpu: true
+  epoch_num: 700
+  BURN_UP_STEP: 14500
+  MAX_SREP: 40600
+  log_smooth_window: 20
+  print_batch_step: 20
+  save_model_dir: ./domain_output/det_r50_db++_icdar13_mp_aug_pseduo/
+  save_epoch_step: 100
+  eval_batch_step:
+  - 0
+  - 400
+  cal_metric_during_train: false
+  pretrained_model: ./pretrain_models/ResNet50_dcn_asf_synthtext_pretrained
+  checkpoints: 
+  # /tmp/Experiments/PaddleOCR/domain/domain_output/det_r50_icdar13_new_mp_700epochs_baseline_img/iter_epoch_200.0
+
+  save_inference_dir: null
+  use_visualdl: false
+  infer_img: train_data/mp/val/images
+  save_res_path: ./checkpoints/new_mp/predicts_db.txt
+Architecture:
+  model_type: det
+  algorithm: DB++
+  Transform: null
+  Backbone:
+    name: ResNet
+    layers: 50
+    dcn_stage: [False, True, True, True]
+  Neck:
+    name: DBFPN
+    out_channels: 256
+    use_asf: True
+  Head:
+    name: DBHead
+    k: 50
+  Aug: true
+  Pseudo label: true
+  DB Imgage alignment: False
+  DB Instance alignment: false
+  Consistency regularization: false
+Loss:
+  name: DBLoss
+  balance_loss: true
+  main_loss_type: BCELoss
+  alpha: 5
+  beta: 10
+  ohem_ratio: 3
+Optimizer:
+  name: Momentum
+  momentum: 0.9
+  lr:
+    name: DecayLearningRate
+    learning_rate: 0.007
+    epochs: 1000
+    factor: 0.9
+    end_lr: 0
+  weight_decay: 0.0001
+PostProcess:
+  name: DBPostProcess
+  thresh: 0.3
+  box_thresh: 0.5
+  max_candidates: 1000
+  unclip_ratio: 1.5
+  det_box_type: 'quad' # 'quad' or 'poly'
+Metric:
+  name: DetMetric
+  main_indicator: hmean
+Train:
+  dataset:
+    name: SimpleDataSet
+    data_dir: ./train_data/icdar2013/Text Localization/                                                                           
+    label_file_list:                                                                                              
+    - ./train_data/icdar2013/Text Localization/test_icdar2013_label.txt                                                         
+    - ./train_data/icdar2013/Text Localization/train_icdar2013_label.txt                                                                  
+    ratio_list:                                                                                                 
+    - 1.0                                                                                                       
+    - 1.0 
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - DetLabelEncode: null
+    - IaaAugment:
+        augmenter_args:
+        - type: Fliplr
+          args:
+            p: 0.2
+        - type: Affine
+          args:
+            rotate:
+            - -10
+            - 10
+        - type: Resize
+          args:
+            size:
+            - 0.5
+            - 3
+    - EastRandomCropData:
+        size:
+        - 640
+        - 640
+        max_tries: 10
+        keep_ratio: true
+    - MakeShrinkMap:
+        shrink_ratio: 0.4
+        min_text_size: 8
+    - MakeBorderMap:
+        shrink_ratio: 0.4
+        thresh_min: 0.3
+        thresh_max: 0.7
+    - source_StrongAugment: null
+    - NormalizeImage_strong:
+        scale: 1./255.
+        mean:
+        - 0.48109378172549
+        - 0.45752457890196
+        - 0.40787054090196
+        std:
+        - 1.0
+        - 1.0
+        - 1.0
+        order: hwc
+    - ToCHWImage_strong: null
+    - KeepKeys:
+        keep_keys:
+        - strong_image
+        - threshold_map
+        - threshold_mask
+        - shrink_map
+        - shrink_mask
+  loader:
+    shuffle: true
+    drop_last: false
+    batch_size_per_card: 4
+    num_workers: 2
+    use_shared_memory: true
+Target:
+  dataset:
+    name: SimpleDataSet
+    data_dir: ./train_data/mp
+    label_file_list:
+    - ./train_data/mp/train_label.txt
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - DetLabelEncode: null
+    - IaaAugment:
+        augmenter_args:
+        - type: Fliplr
+          args:
+            p: 0.2
+        - type: Affine
+          args:
+            rotate:
+            - -5
+            - 5
+        - type: Resize
+          args:
+            size:
+            - 0.7
+            - 1.5
+    - EastRandomCropData:
+        size:
+        - 640
+        - 640
+        max_tries: 10
+        keep_ratio: true
+    - target_StrongAugment: null
+    - NormalizeImage_strong:
+        scale: 1./255.
+        mean:
+        - 0.48109378172549
+        - 0.45752457890196
+        - 0.40787054090196
+        std:
+        - 1.0
+        - 1.0
+        - 1.0
+        order: hwc
+    - ToCHWImage_strong: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - strong_image
+  loader:
+    shuffle: true
+    drop_last: false
+    batch_size_per_card: 4
+    num_workers: 2
+    use_shared_memory: True
+Eval:
+  dataset:
+    name: SimpleDataSet  
+    data_dir: ./train_data/mp
+    label_file_list:
+    - ./train_data/mp/val_label.txt
+    transforms:
+    - DecodeImage:
+        img_mode: BGR
+        channel_first: false
+    - DetLabelEncode: null
+    - DetResizeForTest:
+        image_shape:
+        - 768
+        - 768
+        keep_ratio: True
+    - NormalizeImage:
+        scale: 1./255.
+        mean:
+        - 0.48109378172549
+        - 0.45752457890196
+        - 0.40787054090196
+        std:
+        - 1.0
+        - 1.0
+        - 1.0
+        order: hwc
+    - ToCHWImage: null
+    - KeepKeys:
+        keep_keys:
+        - image
+        - shape
+        - polys
+        - ignore_tags
+  loader:
+    shuffle: False
+    drop_last: false
+    batch_size_per_card: 1
+    num_workers: 2
+profiler_options: null
